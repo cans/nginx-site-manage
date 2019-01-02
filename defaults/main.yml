@@ -1,0 +1,9 @@
+---
+# defaults file for nginx-site-manage
+nginxsites_available_dir: "{{ nginxsites_config_dir }}/sites-available"
+nginxsites_config_dir: "/etc/nginx"
+nginxsites_config_files:
+  - "roles/nginx-setup/templates/nginx.conf"
+nginxsites_enabled_dir: "{{ nginxsites_config_dir }}/sites-enabled"
+nginxsites_sites_absent: []
+nginxsites_sites_present: []

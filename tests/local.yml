@@ -1,0 +1,30 @@
+---
+- name: Bring up docker containers
+  connection: local
+  gather_facts: false
+  hosts: localhost
+  vars:
+    inventory:
+      - name: nginx_site_manage_host_1
+        image: "python:3.6-stretch"
+        groups:
+          - servers
+
+  roles:
+    - role: chrismeyersfsu.provision_docker
+      provision_docker_inventory: "{{inventory}}"
+      provision_docker_use_docker_connection: true
+
+- name: "Install NginX"
+  connection: docker
+  hosts: servers
+  gather_facts: false
+  tasks:
+    - name: install nginx
+      apt:
+        package: "nginx"
+        state: present
+
+- import_playbook: ./test.yml
+
+# vim: et:sw=2:syntax=yaml:ts=2:

@@ -1,0 +1,128 @@
+---
+- hosts: servers
+  gather_facts: false
+  name: "Ensure role does not fail with defaults"
+
+  # Execute the role
+  roles:
+    - role: "nginx-site-manage"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure default are empty lists"
+      assert:
+        that:
+          - "nginxsites_sites_absent | length == 0"
+          - "nginxsites_sites_present | length == 0"
+
+    - name: "Ensure no sites are available indeed"
+      find:
+        file_type: any
+        hidden: true
+        paths: "{{ nginxsites_enabled_dir }}"
+      register: found
+      failed_when: "found.matched|int != 1"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure role can disable sites"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    # We want the role to disable
+    nginxsites_sites_present:
+      - site_name: default
+
+  roles:
+    - role: "nginx-site-manage"
+
+  tasks:
+    - name: "Ensure no sites are enabled yet"
+      find:
+        file_type: any
+        hidden: true
+        paths: "{{ nginxsites_enabled_dir }}"
+      register: found
+      failed_when: "found.matched|int != 0"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure role can remove sites"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    # We want the role to disable
+    nginxsites_sites_absent:
+      - site_name: default
+
+  roles:
+    - role: "nginx-site-manage"
+
+  tasks:
+    - name: "Ensure no sites are enabled yet"
+      find:
+        file_type: any
+        hidden: true
+        paths: "{{ nginxsites_enabled_dir }}"
+      register: found
+      failed_when: "found.matched|int != 0"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure role works with one a few sites"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    nginxsites_sites_present: "{{ sites_all }}"
+
+  roles:
+    - role: "nginx-site-manage"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure available sites are available indeed"
+      stat:
+        path: "{{ nginxsites_available_dir }}/{{ item.site_name }}"
+      loop: "{{ nginxsites_sites_present }}"
+      register: filestats
+      failed_when: "filestats.failed"
+
+    - name: "Ensure no sites are enabled yet"
+      find:
+        file_type: any
+        hidden: true
+        paths: "{{ nginxsites_enabled_dir }}"
+      register: found
+      failed_when: "found.matched|int != 0"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure role can enable sites"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    nginxsites_sites_present:
+      - "{{ site_dummy_default | combine({'site_state': 'enabled'}) }}"
+      - "{{ site_dummy_redirect | combine({'site_state': 'enabled'}) }}"
+      - "{{ site_dummy_no_redirect }}"
+
+  roles:
+    - role: nginx-site-manage
+
+  tasks:
+    - name: "Ensure available sites are available indeed"
+      find:
+        file_type: "link"
+        path: "{{ nginxsites_enabled_dir }}"
+      loop: "{{ nginxsites_sites_present }}"
+      register: found
+      failed_when: >
+        found.matched|int != 2 and
+        found.files|map(attribute='path')|sort != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+
+
+# vim: et:sw=2:syntax=yaml:ts=2:

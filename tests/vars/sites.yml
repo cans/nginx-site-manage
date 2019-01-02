@@ -1,0 +1,27 @@
+---
+test_domain_name: "example.com"
+site_dummy_default:
+  site_fqdn: "dummy-default.{{ test_domain_name }}"
+  site_ip: "127.0.0.1"
+  site_name: "dummy-default"
+  site_port: 8080
+  site_template: "proxied-site.j2"
+site_dummy_redirect:
+  site_allow_redirect: true
+  site_fqdn: "dummy2.{{ test_domain_name }}"
+  site_ip: "127.0.0.1"
+  site_name: "dummy2"
+  site_port: 8081
+  site_template: "proxied-site.j2"
+site_dummy_no_redirect:
+  site_allow_redirect: false
+  site_fqdn: "dummy-no-redirect.{{ test_domain_name }}"
+  site_ip: "127.0.0.1"
+  site_name: "dummy_no_redirect"
+  site_port: 8082
+  site_template: "proxied-site.j2"
+  site_state: 'disabled'
+sites_all:
+ - "{{ site_dummy_default }}"
+ - "{{ site_dummy_redirect }}"
+ - "{{ site_dummy_no_redirect }}"

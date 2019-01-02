@@ -1,0 +1,85 @@
+version: 2
+
+jobs:
+  build:
+    working_directory: ~/nginx-site-manage
+    docker:
+      - image: circleci/python:3.6
+        environment:
+          TEST_REPORTS_DIR: ~/test-reports
+
+    # If your role uses with Docker use this to run tests inside a VM instead
+    # of a container (Docker in container does not work well).
+
+    # machine:
+    #   image: "circleci/classic:latest"
+    # environment:
+    #   TEST_REPORTS_DIR: ~/test-reports
+    #   ANSIBLE_ROLE: "nginx-site-manage"
+
+    steps:
+      - checkout
+
+      - run:
+          name: Create required directories
+          command: |
+            mkdir -p $TEST_REPORTS_DIR/ ~/.virtualenvs ~/.ssh
+            # One needs to concateante here any files that can alter the virtualenv in a way:
+            #   - setup.py: for the endpoints installed in $VIRTUAL_ENV/bin
+            #   - requirements.txt
+            #   - dev-requirements.txt
+            # Since we do a develop install of the code itself (cf. the '-e .' in dev-requirments.txt)
+            # it does not matter.
+            cat tests/requirements.txt tests/requirements.yml > circleci-requirements.txt
+            # Note that if the workflow is split, you will need to have the file `venv/circleci-requirements.txt`
+            # passed from one build job to the other, either through caching or using workspaces.
+
+      # Note: since many roles may have the exact same requirements, to make
+      #       builds even cheaper and faster, here we set-up a cache that is
+      #       completely role agnositic (role name never appears anywhere).
+      #
+      #       THIS IS INTENTIONAL -- KEEP IT THAT WAY
+      #
+      #       If it causes trouble for you, please use different cache keys
+      #       your builds.
+      #
+      #       Also if you need to expand the build with a workflow, make sure
+      #       you don't start caching sources with the dependancies.
+      - restore_cache:
+          key: v1-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
+
+      - run:
+          name: Install dependencies
+          command: |
+            if [ -d "${HOME}/.virtualenvs/ansible-role-testing"  ]
+            then
+                :
+            else
+                pushd "${HOME}/.virtualenvs"
+                python -m venv "ansible-role-testing"
+                popd
+                printf "[ansible]\nroles_path = ${HOME}/roles:..\n" > ./ansible.cfg
+                . "${HOME}/.virtualenvs/ansible-role-testing/bin/activate"
+                pip install --upgrade "pip>=9.0.1"
+                pip install --upgrade -r tests/requirements.txt
+                ansible-galaxy install -r tests/requirements.yml -p "${HOME}/roles"
+            fi
+
+      - save_cache:
+          key: v1-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
+          paths:
+            - ~/.virtualenvs
+            - ~/roles
+
+      - run:
+          name: Run tests
+          command: |
+            . "${HOME}/.virtualenvs/ansible-role-testing/bin/activate"
+            tests/run-checks.sh
+            ansible-playbook -i tests/inventory tests/test.yml --connection=local
+
+      - store_artifacts:
+          - ~/test-reports
+
+
+# vim: et:sw=2:syntax=yaml:ts=2:

@@ -1,0 +1,13 @@
+# This file is managed by the nginx-site-manage Ansible role
+# DO NOT EDIT: changes may be overwritten at any time.
+server {
+    listen 443 ssl ;
+    listen [::]:443 ssl ;
+
+    server_name {{item.site_fqdn}} ;
+
+    location / {
+        proxy_pass http://{{item.site_ip}}:{{item.site_port}} ;
+        {%if item.site_allow_redirect|default(False) %}proxy_redirect default ;{% endif %}
+    }
+}
