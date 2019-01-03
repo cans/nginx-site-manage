@@ -1,0 +1,7 @@
+---
+- name: reload nginx
+  service:
+    name: nginx
+    state: reloaded
+
+# vim: et:sw=2:syntax=yaml:ts=2:

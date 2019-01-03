@@ -1,2 +1,4 @@
 *~
+*.retry
+.*.sw?
 tests/roles/*.*

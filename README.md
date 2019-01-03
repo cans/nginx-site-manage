@@ -24,10 +24,23 @@ Each site is describe as follows:
   # here. They will be available to the template as `{{item.<key>}}`
 ```
 
-Note that the `site_name` will determine the name of the configuration
-file. It should hence be valid file name.
+Note that the value of `site_name` will be used to name the virtual
+host configuration file. It should hence be valid file name.
 
-This roles comes with a few basic templates, for simple use
+There are a few additional keys you can define to override some
+defaults, on a per-site basis:
+
+```yaml
+- site_name: "my-site"
+  # Set the group of the virtual host config file to "www-data"
+  site_config_file_group: "www-data"
+  # Set the mode of the virtual host config file to "www-data"
+  site_config_file_mode: "0400"
+  # Set the owner of the virtual host config file to "www-data"
+  site_config_file_owner: "www-data"
+```
+
+Finally, this roles comes with a few basic templates, for simple use
 cases, you can expand on. See the example playbooks below for more.
 
 Note that, though a few templates are hereby provided, you can use
@@ -60,13 +73,22 @@ All variables in this role are namespaced with the prefix `nginxsites_`
 
 ### Defaults
 
-- `nginxsites_config_dir`: nginx's configuration directory (default:
-  `/etc/nginx`)
-- `nginxsites_sites_available_dir`: directory from which nginx's loads
+- `nginxsites_available_dir`: directory from which nginx's loads
   virtual hosts configuration (default:
   `{{nginxsites_config_dir}}/sites-available`).
-- `nginxsites_sites_enabled_dir`: directory in which store virtual hosts
+- `nginxsites_config_dir`: nginx's configuration directory (default:
+  `/etc/nginx`)
+- `nginxsites_config_file_group`: sets the default group of the site configuration
+  files (default: `{{ansible_user_id}}` <sup>[1](#fn-gatherfacts)</sup>);
+- `nginxsites_config_file_mode`: sets the default permissions of the sites
+  configuration files (default: `0640`);
+- `nginxsites_config_file_owner`: sets the user owner of the sites
+  configuration files by default (default: `{{ansible_user_id}}`
+  <sup>[1](#fn-gatherfacts)</sup>);
+- `nginxsites_enabled_dir`: directory in which store virtual hosts
   configuration (default: `{{nginxsites_config_dir}}/sites-available`).
+- `nginxsites_handlers_disabled`: flag that will disable handlers
+  when set to true (default: `false`);
 - `nginxsites_sites_present`: a list of site names that need to be present
   in the `` directory. Each site is describe as explained above;
 - `nginxsites_sites_absent`: a list of sites names that must not be
@@ -87,6 +109,12 @@ Here follows a description of the variables used by the _built-in_
 - `site_port`: the TCP port the service is bound to.
   Applies to templates: `proxied-site.j2`
 
+
+<a name="fn-gatherfacts">1</a>: Not that the `ansible_user_id`
+variable is only available if your play uses [`gather_facts:
+true`][facts] (which is the default).
+
+[facts]: https://docs.ansible.com/ansible/latest/user_guide/playbooks_variables.html#variables-discovered-from-systems-facts
 
 
 Dependencies

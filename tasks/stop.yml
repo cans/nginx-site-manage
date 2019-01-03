@@ -1,0 +1,7 @@
+---
+- name: stop nginx
+  service:
+    name: nginx
+    state: stopped
+
+# vim: et:sw=2:syntax=yaml:ts=2:

@@ -21,6 +21,7 @@
         hidden: true
         paths: "{{ nginxsites_enabled_dir }}"
       register: found
+      # 1 cause there is the default config from the package.
       failed_when: "found.matched|int != 1"
 
 
@@ -30,12 +31,13 @@
   vars_files:
     - vars/sites.yml
   vars:
-    # We want the role to disable
-    nginxsites_sites_present:
-      - site_name: default
 
+  # Execute the role
   roles:
     - role: "nginx-site-manage"
+      # We want the role to disable the default vhost.
+      nginxsites_sites_present:
+        - site_name: default
 
   tasks:
     - name: "Ensure no sites are enabled yet"
@@ -53,12 +55,13 @@
   vars_files:
     - vars/sites.yml
   vars:
-    # We want the role to disable
-    nginxsites_sites_absent:
-      - site_name: default
 
+  # Execute the role
   roles:
     - role: "nginx-site-manage"
+      # We want the role to remove the default vhost.
+      nginxsites_sites_absent:
+        - site_name: default
 
   tasks:
     - name: "Ensure no sites are enabled yet"
@@ -71,22 +74,24 @@
 
 
 - hosts: servers
-  gather_facts: false
-  name: "Ensure role works with one a few sites"
+  # gather_facts: false
+  name: "Ensure role works with a few sites"
   vars_files:
     - vars/sites.yml
-  vars:
-    nginxsites_sites_present: "{{ sites_all }}"
 
+  # Execute the role
   roles:
     - role: "nginx-site-manage"
+      # We want to write down the config of the three sites
+      # None are enabled yet
+      nginxsites_sites_present: "{{ sites_all_disabled }}"
 
   # Test the outcome
   tasks:
     - name: "Ensure available sites are available indeed"
       stat:
         path: "{{ nginxsites_available_dir }}/{{ item.site_name }}"
-      loop: "{{ nginxsites_sites_present }}"
+      loop: "{{ sites_all_disabled }}"
       register: filestats
       failed_when: "filestats.failed"
 
@@ -105,24 +110,259 @@
   vars_files:
     - vars/sites.yml
   vars:
-    nginxsites_sites_present:
-      - "{{ site_dummy_default | combine({'site_state': 'enabled'}) }}"
-      - "{{ site_dummy_redirect | combine({'site_state': 'enabled'}) }}"
-      - "{{ site_dummy_no_redirect }}"
 
+  # Execute the role
   roles:
     - role: nginx-site-manage
+      nginxsites_sites_present: "{{ sites_2_enabled }}"
 
+  # Test the outcome
   tasks:
-    - name: "Ensure available sites are available indeed"
+    - name: "Ensure enabled sites are enabled indeed"
       find:
         file_type: "link"
         path: "{{ nginxsites_enabled_dir }}"
-      loop: "{{ nginxsites_sites_present }}"
+      loop: "{{ sites_2_enabled }}"
       register: found
       failed_when: >
-        found.matched|int != 2 and
-        found.files|map(attribute='path')|sort != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+        found.matched|int != 2
+        and found.files|map(attribute='path')|sort
+        != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+
+
+- hosts: servers
+  # gather_facts: false
+  name: "Ensure `nginxsites_available_dir` override works"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    alternate_available_dir: "/tmp/nginx-site-manage-tests/test-directory-override/available-sites"
+    alternate_enabled_dir: "/tmp/nginx-site-manage-tests/test-directory-override/enabled-sites"
+  pre_tasks:
+    - name: "Create alternate available sites directory"
+      file:
+        state: "directory"
+        path: "{{ item }}"
+      loop:
+        - "{{ alternate_available_dir }}"
+        - "{{ alternate_enabled_dir }}"
+
+  # Execute the role
+  roles:
+    - role: nginx-site-manage
+      nginxsites_available_dir: "{{ alternate_available_dir }}"
+      nginxsites_enabled_dir: "{{ alternate_available_dir }}"
+      nginxsites_sites_present: "{{ sites_all_disabled }}"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure available sites are available indeed"
+      stat:
+        path: "{{ alternate_available_dir }}/{{ item.site_name }}"
+      loop: "{{ sites_all_disabled }}"
+      register: filestats
+      failed_when: "filestats.failed"
+
+    - name: "Ensure no sites are enabled yet"
+      find:
+        file_type: any
+        hidden: true
+        paths: "{{ alternate_enabled_dir }}"
+      register: found
+      failed_when: "found.matched|int != 0"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure `nginxsites_enabled_dir` override works"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    alternate_available_dir: "/tmp/nginx-site-manage-tests/test-directory-override/available-sites"
+    alternate_enabled_dir: "/tmp/nginx-site-manage-tests/test-directory-override/enabled-sites"
+
+  # Execute the role
+  roles:
+    - role: nginx-site-manage
+      nginxsites_available_dir: "{{ alternate_available_dir }}"
+      nginxsites_enabled_dir: "{{ alternate_enabled_dir }}"
+      nginxsites_sites_present: "{{ sites_2_enabled }}"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure enabled sites are enabled indeed"
+      find:
+        file_type: "link"
+        path: "{{ alternate_enabled_dir }}"
+      loop: "{{ sites_2_enabled }}"
+      register: found
+      failed_when: >
+        found.matched|int != 2
+        and found.files|map(attribute='path')|sort
+        != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+
+  post_tasks:
+    - name: "Clean-up alternate config directory"
+      file:
+        state: "directory"
+        path: "{{ alternate_available_dir|dirname }}"
+
+
+- hosts: servers
+  # gather_facts: false
+  name: "Ensure `nginxsites_config_dir` override works"
+  vars_files:
+    - vars/sites.yml
+  vars:
+    alternate_config_dir: "/tmp/nginx-site-manage-tests/test-directory-override/config"
+  pre_tasks:
+    - name: "Create alternate config directory"
+      file:
+        state: "directory"
+        path: "{{ item }}"
+      loop:
+        - "{{ alternate_config_dir }}/sites-available"
+        - "{{ alternate_config_dir }}/sites-enabled"
+
+  # Execute the role
+  roles:
+    - role: nginx-site-manage
+      nginxsites_config_dir: "{{ alternate_config_dir }}"
+      nginxsites_sites_present: "{{ sites_2_enabled }}"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure nginxsites_available_dir and nginxsites_enabled_dir are under alternate_config_dir"
+      file:
+        state: directory
+        path: "{{ item }}"
+      register: the_dir
+      failed_when: the_dir.changed
+      loop:
+        - "{{ alternate_config_dir }}/sites-available"
+        - "{{ alternate_config_dir }}/sites-enabled"
+
+    - name: "Ensure available sites are available indeed"
+      find:
+        file_type: "file"
+        path: "{{ alternate_config_dir }}/sites-available"
+      loop: "{{ sites_2_enabled }}"
+      register: found
+      failed_when: >
+        found.matched|int != 3
+        and found.files|map(attribute='path')|sort
+        != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+
+    - name: "Ensure enabled sites are enabled indeed"
+      find:
+        file_type: "link"
+        path: "{{ alternate_config_dir }}/sites-enabled"
+      loop: "{{ sites_2_enabled }}"
+      register: found
+      failed_when: >
+        found.matched|int != 2
+        and found.files|map(attribute='path')|sort
+        != nginxsites_sites_present|selectattr('site_state', 'equalto', 'enabled')|map(attribute='site_name')|sort
+
+  post_tasks:
+    - name: "Clean-up alternate config directory"
+      file:
+        state: "absent"
+        path: "{{ alternate_config_dir }}"
+
+
+- hosts: servers
+  gather_facts: false
+  name: "Ensure owner, group and mode global override works"
+  vars_files:
+    - vars/sites.yml
+
+  # Execute the role
+  roles:
+    - role: nginx-site-manage
+      nginxsites_config_file_group: "{{ file_permissions_overrides.site_config_file_group }}"
+      nginxsites_config_file_mode: "{{ file_permissions_overrides.site_config_file_mode }}"
+      nginxsites_config_file_owner: "{{ file_permissions_overrides.site_config_file_owner }}"
+      nginxsites_sites_present:
+        - "{{ site_dummy_default }}"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure file propertis are as expected"
+      stat:
+        path: "{{ nginxsites_available_dir }}/{{ site_dummy_default.site_name }}"
+        get_checksum: false
+      register: filestats
+      failed_when: >
+        filestats.failed
+        or filestats.stat.gr_name != file_permissions_overrides.site_config_file_group
+        or filestats.stat.mode|int != file_permissions_overrides.site_config_file_mode|int
+        or filestats.stat.pw_name != file_permissions_overrides.site_config_file_owner
+
+  post_tasks:
+    - name: "Clean-up config file"
+      file:
+        state: "absent"
+        path: "{{ nginxsites_available_dir }}/{{ site_dummy_default.site_name }}"
+
+
+
+- hosts: servers
+  # gather_facts: false
+  name: "Ensure owner, group and mode per-site override works"
+  vars_files:
+    - vars/sites.yml
+  pre_tasks:
+    - name: "Ensure test inputs are valid"
+      assert:
+        that:
+          - "file_permissions_overrides.site_config_file_group != nginxsites_config_file_group"
+          - "file_permissions_overrides.site_config_file_mode != nginxsites_config_file_mode"
+          - "file_permissions_overrides.site_config_file_owner != nginxsites_config_file_owner"
+        fail_msg: "You should make sure overrides values are different from the defaults."
+        success_msg: "OK"
+
+  # Execute the role
+  roles:
+    - role: nginx-site-manage
+      nginxsites_sites_present:
+        # One with permissions overrides
+        - "{{ site_dummy_default | combine(file_permissions_overrides) }}"
+        # The other without
+        - "{{ site_dummy_redirect }}"
+
+  # Test the outcome
+  tasks:
+    - name: "Ensure file properties are as expected for the site with overrides"
+      stat:
+        path: "{{ nginxsites_available_dir }}/{{ site_dummy_default.site_name }}"
+        get_checksum: false
+      register: filestats
+      failed_when: >
+        filestats.failed
+        or filestats.stat.gr_name != file_permissions_overrides.site_config_file_group
+        or filestats.stat.mode != file_permissions_overrides.site_config_file_mode
+        or filestats.stat.pw_name != file_permissions_overrides.site_config_file_owner
+
+    - name: "Ensure file properties are as expected for the site without overrides"
+      stat:
+        path: "{{ nginxsites_available_dir }}/{{ site_dummy_redirect.site_name }}"
+        get_checksum: false
+      register: filestats
+      failed_when: >
+        filestats.failed
+        or filestats.stat.gr_name != nginxsites_config_file_group
+        or filestats.stat.mode|int != nginxsites_config_file_mode|int
+        or filestats.stat.pw_name != nginxsites_config_file_owner
+
+  post_tasks:
+    - name: "Clean-up config file"
+      file:
+        state: "absent"
+        path: "{{ nginxsites_available_dir }}/{{ item }}"
+      loop:
+        - "{{ site_dummy_default.site_name }}"
+        - "{{ site_dummy_redirect.site_name }}"
 
 
 # vim: et:sw=2:syntax=yaml:ts=2:
