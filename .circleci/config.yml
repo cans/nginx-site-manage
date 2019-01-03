@@ -1,21 +1,25 @@
-version: 2
+version: 2.1
 
 jobs:
   build:
     working_directory: ~/nginx-site-manage
-    docker:
-      - image: circleci/python:3.6
-        environment:
-          TEST_REPORTS_DIR: ~/test-reports
+    # docker:
+    #   - image: circleci/python:3.6
+    #     environment:
+    #       TEST_REPORTS_DIR: ~/test-reports
 
     # If your role uses with Docker use this to run tests inside a VM instead
     # of a container (Docker in container does not work well).
 
-    # machine:
-    #   image: "circleci/classic:latest"
-    # environment:
-    #   TEST_REPORTS_DIR: ~/test-reports
-    #   ANSIBLE_ROLE: "nginx-site-manage"
+    machine:
+      image: "circleci/classic:latest"
+    environment:
+      TEST_REPORTS_DIR: ~/test-reports
+      ANSIBLE_ROLE: "nginx-site-manage"
+      PYENV_VERSION: 3.5.2
+      # Nginx version retrieved from:
+      # https://packages.ubuntu.com/search?keywords=nginx-light&searchon=names&suite=all&section=all
+      NGINX_VERSION: 1.4.6-1ubuntu3.9
 
     steps:
       - checkout
@@ -24,15 +28,21 @@ jobs:
           name: Create required directories
           command: |
             mkdir -p $TEST_REPORTS_DIR/ ~/.virtualenvs ~/.ssh
-            # One needs to concateante here any files that can alter the virtualenv in a way:
+            # One needs to concatenate here any files that can alter the virtualenv in a way:
             #   - setup.py: for the endpoints installed in $VIRTUAL_ENV/bin
             #   - requirements.txt
             #   - dev-requirements.txt
             # Since we do a develop install of the code itself (cf. the '-e .' in dev-requirments.txt)
             # it does not matter.
+            pyenv local 3.5.2
             cat tests/requirements.txt tests/requirements.yml > circleci-requirements.txt
+            # In case Python's version in the image changes. The pyenv command above should
+            # break but we still need to regenerate the cache afterwards)
+            echo $(python3 --version) >> circleci-requirements.txt
             # Note that if the workflow is split, you will need to have the file `venv/circleci-requirements.txt`
             # passed from one build job to the other, either through caching or using workspaces.
+            sudo apt-get update
+            sudo apt-get install "nginx-light=${NGINX_VERSION}"
 
       # Note: since many roles may have the exact same requirements, to make
       #       builds even cheaper and faster, here we set-up a cache that is
@@ -46,7 +56,7 @@ jobs:
       #       Also if you need to expand the build with a workflow, make sure
       #       you don't start caching sources with the dependancies.
       - restore_cache:
-          key: v1-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
+          key: v3-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
 
       - run:
           name: Install dependencies
@@ -55,31 +65,45 @@ jobs:
             then
                 :
             else
+                pyenv local 3.5.2
                 pushd "${HOME}/.virtualenvs"
-                python -m venv "ansible-role-testing"
+                python3 -m venv "ansible-role-testing"
                 popd
-                printf "[ansible]\nroles_path = ${HOME}/roles:..\n" > ./ansible.cfg
                 . "${HOME}/.virtualenvs/ansible-role-testing/bin/activate"
-                pip install --upgrade "pip>=9.0.1"
-                pip install --upgrade -r tests/requirements.txt
+                pip3 install --upgrade "pip>=9.0.1"
+                pip3 install --upgrade -r tests/requirements.txt
+                printf "[defaults]\nroles_path = ~/roles:~\n" > ./ansible.cfg
                 ansible-galaxy install -r tests/requirements.yml -p "${HOME}/roles"
             fi
 
+      # Might split it in two: role cache vs. venv cache.
       - save_cache:
-          key: v1-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
+          # Might split it in two: role cache vs. venv cache.
+          key: v3-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
           paths:
             - ~/.virtualenvs
             - ~/roles
+            - /etc/nginx
 
       - run:
           name: Run tests
           command: |
             . "${HOME}/.virtualenvs/ansible-role-testing/bin/activate"
-            tests/run-checks.sh
-            ansible-playbook -i tests/inventory tests/test.yml --connection=local
+            printf "[servers]\nlocalhost\n" > tests/inventory.ini
+            printf "[defaults]\nroles_path=%s:%s\n" "${HOME}/roles" "$(dirname `pwd`)" > ./ansible.cfg
+            # tmpdir="$(mktemp -d -p ~ etc-nginx-XXXXXX.tmp)"
+            # mkdir -p ${tmpdir}/{sites-available,sites-enabled}/default
+            # ln -s ${tmpdir}/{sites-enabled,sites-available}/default
+            ansible-lint tests/test.yml || true  # To not fail the tests
+            ansible-playbook -i tests/inventory.ini tests/test.yml --syntax-check
+            ansible-playbook \
+                --become \
+                --connection=local \
+                -i tests/inventory.ini \
+                tests/test.yml
 
-      - store_artifacts:
-          - ~/test-reports
+      # - store_artifacts:
+      #     - ~/test-reports
 
 
 # vim: et:sw=2:syntax=yaml:ts=2:
