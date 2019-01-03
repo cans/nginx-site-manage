@@ -1,22 +1,27 @@
 ---
+# This files runs tests a virtual machine on which Docker is available.
+# Whenever the role / playbook you test needs to create containers or
+# container images, you should use this configuration file instead of
+# the "regular" one.
 language: python
 python:
   - "2.7"
   - "3.6"
-  - "3.7"
+  # - "3.7"  # Not available yet ? Doc says yes, runtime says no.
 
-# Use the new container infrastructure
-sudo: false
-# sudo: required
+services:
+  - docker
 
-addons:
-  apt:
-    packages:
-    - python-pip
+before_install:
+  - sudo apt-get update -qq
 
 install:
+  - sudo apt-get install sshpass  # Still required ?
   # Install ansible
   - pip install ansible ansible-lint>=3.4.20
+  # Following still required ? (probably if running tests in docker in the VM).
+  - pip install -r tests/requirements.txt
+  - ansible-galaxy install -r tests/requirements.yml
 
   # Check ansible version
   - ansible --version
@@ -24,11 +29,21 @@ install:
   # Create ansible.cfg with correct roles_path
   - printf '[defaults]\nroles_path=../' >ansible.cfg
 
+  # Create inventory file.
+  - printf '[servers]\nlocalhost' > inventory.ini
+
 script:
-  # Basic role syntax check
-  - ansible-lint tests/test.yml
-  - ansible-playbook tests/test.yml -i tests/inventory --syntax-check
-  - ansible-playbook tests/test.yml -i tests/inventory --connection=local
+  # Basic role syntax check & linting
+  - ansible-playbook tests/test.yml -i tests/inventory.ini --syntax-check
+  - ansible-lint tests/test.yml || true  # we don't want this to fail the build.
+  # Actually runs the playbook.
+  - ansible-playbook tests/local.yml -i tests/inventory.ini --connection=local
+  # Shall we run the tests/local.yml playbook as above, instead
+  # of the playbook ? As we're on a VM, we'll have sudo issues.
+  # Might need `--become` option (added below)
+  - ansible-playbook -b tests/test.yml -i tests/inventory.ini --connection=local
 
 notifications:
   webhooks: https://galaxy.ansible.com/api/v1/notifications/
+
+# vim: et:sw=2:syntax=yaml:ts=2:
