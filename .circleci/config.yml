@@ -44,17 +44,6 @@ jobs:
             sudo apt-get update
             sudo apt-get install "nginx-light=${NGINX_VERSION}"
 
-      # Note: since many roles may have the exact same requirements, to make
-      #       builds even cheaper and faster, here we set-up a cache that is
-      #       completely role agnositic (role name never appears anywhere).
-      #
-      #       THIS IS INTENTIONAL -- KEEP IT THAT WAY
-      #
-      #       If it causes trouble for you, please use different cache keys
-      #       your builds.
-      #
-      #       Also if you need to expand the build with a workflow, make sure
-      #       you don't start caching sources with the dependancies.
       - restore_cache:
           key: v3-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
 
@@ -76,7 +65,6 @@ jobs:
                 ansible-galaxy install -r tests/requirements.yml -p "${HOME}/roles"
             fi
 
-      # Might split it in two: role cache vs. venv cache.
       - save_cache:
           # Might split it in two: role cache vs. venv cache.
           key: v3-ansible-role-cache-{{ checksum "circleci-requirements.txt" }}
