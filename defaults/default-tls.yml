@@ -1,0 +1,13 @@
+---
+# This file contains an example site definition for the default-tls, template.
+site_default_ssl:
+  # Location of the private key generated when you install
+  # the
+  # DO NOT USE IN PRODUCTION
+  tls_private_key: "/etc/ssl/private/ssl-cert-snakeoil.key"
+  tls_protocols: "TLSv1.2 TLSv.13"
+  tls_cyphers: "EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH"
+  tls_enforce_server_cyphersuite: true
+
+# vim: et:sw=2:syntax=yaml:ts=2:
+  
