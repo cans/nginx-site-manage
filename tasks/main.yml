@@ -1,16 +1,27 @@
 ---
-# Add task to add and remove "sites"
 - name: "Validate role inputs"
-  assert:
-    that:
-      - "nginxsites_sites_present | map(attribute='site_name') | intersect(nginxsites_sites_absent | map(attribute='site_name')) | list | length == 0"
-    # fail_msg: "Sites listed in `nginxsites_sites_present' and `nginxsites_sites_absent' collide (here are to colliding site names: {{ nginxsites_sites_present | map(attribute='site_name') | intersect(nginxsites_sites_absent | map(attribute='site_name')) | list | join(', ') }}"
-  debugger: on_failed
+  fail:
+    msg: >-
+      Sites listed in `nginxsites_sites_present' and `nginxsites_sites_absent'
+      collide (here are to colliding site names:
+      {{ nginxsites_sites_present |
+         map(attribute='site_name') |
+         intersect(nginxsites_sites_absent |
+         map(attribute='site_name')) | list | join(', ') }}
+  when: |
+    nginxsites_sites_present |
+    map(attribute='site_name') |
+    intersect(nginxsites_sites_absent |
+    map(attribute='site_name')) | list | length != 0
+
 
 - name: "Ensure NGinX sites are present"
   template:
-    src: "{{ item.site_template }}"
     dest: "{{ item.site_available_dir|default(nginxsites_available_dir) }}/{{ item.site_name | basename }}"
+    group: "{{ item.site_config_file_group|default(nginxsites_config_file_group) }}"
+    mode: "{{ item.site_config_file_mode|default(nginxsites_config_file_mode) }}"
+    owner: "{{ item.site_config_file_owner|default(nginxsites_config_file_owner) }}"
+    src: "{{ item.site_template }}"
   when: item.site_template is defined
   loop: "{{ nginxsites_sites_present }}"
 
@@ -22,6 +33,7 @@
     state: "link"
   when: "item.site_state|default('disabled') == 'enabled'"
   loop: "{{ nginxsites_sites_present }}"
+  notify: "restart nginx"
 
 
 - name: "Disable NGinX sites"
@@ -29,18 +41,16 @@
     dest: "{{ item.site_enabled_dir|default(nginxsites_enabled_dir) }}/{{ item.site_name | basename }}"
     state: "absent"
   when: "item.site_state|default('disabled') == 'disabled'"
-  loop: "{{ nginxsites_sites_present }}"
+  # We ensure "absent" sites are deleted and don't leave dangling symlinks
+  # behind, that's just unsanitary, and nginx would fail to restart.
+  loop: "{{ nginxsites_sites_present
+            + (nginxsites_sites_absent | map('combine', {'site_state': 'disabled'}) | list) }}"
+  notify: "restart nginx"
 
 
 - name: "Prune NGinX sites config"
   file:
     dest: "{{ item.site_available_dir|default(nginxsites_available_dir) }}/{{ item.site_name | basename }}"
-    state: "absent"
-  loop: "{{ nginxsites_sites_absent }}"
-
-- name: "Ensure not dangling symbolic link is left behind"
-  file:
-    dest: "{{ item.site_enabled_dir|default(nginxsites_enabled_dir) }}/{{ item.site_name | basename }}"
     state: "absent"
   loop: "{{ nginxsites_sites_absent }}"
 

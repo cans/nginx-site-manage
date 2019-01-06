@@ -2,7 +2,7 @@ galaxy_info:
   author: Nicolas CANIART
   description: A Role to manage nginx "sites" (virtual hosts configuration)
 
-  issue_tracker_url: https://github.com/cans/nginx-site-manage
+  issue_tracker_url: https://github.com/cans/nginx-site-manage/issues
 
   license: GPLv2
 
@@ -16,11 +16,12 @@ galaxy_info:
   platforms:
   - name: Debian
     versions:
-    - 9
+    - buster
     - sid
   - name: Ubuntu
     versions:
-    - 18.04
+    - bionic
+    - cosmic
 
   galaxy_tags:
     - nginx

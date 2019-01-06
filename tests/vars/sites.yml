@@ -21,7 +21,16 @@ site_dummy_no_redirect:
   site_port: 8082
   site_template: "proxied-site.j2"
   site_state: 'disabled'
-sites_all:
- - "{{ site_dummy_default }}"
- - "{{ site_dummy_redirect }}"
- - "{{ site_dummy_no_redirect }}"
+sites_all_disabled:
+  - "{{ site_dummy_default }}"
+  - "{{ site_dummy_redirect }}"
+  - "{{ site_dummy_no_redirect }}"
+sites_2_enabled:
+  # We want to enable 2 of the 3 sites
+  - "{{ site_dummy_default | combine({'site_state': 'enabled'}) }}"
+  - "{{ site_dummy_redirect | combine({'site_state': 'enabled'}) }}"
+  - "{{ site_dummy_no_redirect }}"
+file_permissions_overrides:
+  site_config_file_group: "www-data"
+  site_config_file_mode: "0400"
+  site_config_file_owner: "www-data"

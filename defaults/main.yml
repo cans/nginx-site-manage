@@ -2,8 +2,12 @@
 # defaults file for nginx-site-manage
 nginxsites_available_dir: "{{ nginxsites_config_dir }}/sites-available"
 nginxsites_config_dir: "/etc/nginx"
-nginxsites_config_files:
-  - "roles/nginx-setup/templates/nginx.conf"
+nginxsites_config_file_group: "{{ ansible_user_id }}"
+nginxsites_config_file_mode: "0640"
+nginxsites_config_file_owner: "{{ ansible_user_id }}"
 nginxsites_enabled_dir: "{{ nginxsites_config_dir }}/sites-enabled"
+nginxsites_handlers_disabled: false
 nginxsites_sites_absent: []
 nginxsites_sites_present: []
+
+# vim: et:sw=2:syntax=yaml:ts=2:
